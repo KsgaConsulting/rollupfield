@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title data-i18n="PAGE_TITLE">Rollup configuration transfer</title>
+<style>
+:root {
+    --bg: #ffffff; --text: #201f1e; --muted: #605e5c; --border: #c8c6c4; --panel: #f3f2f1;
+    --accent: #0f6cbd; --accent-text: #ffffff; --ok: #107c10; --warn: #8a5a00; --error: #b10e1c; --error-bg: #fde7e9;
+}
+@media (prefers-color-scheme: dark) {
+    :root { --bg: #1f1f1f; --text: #f3f2f1; --muted: #c8c6c4; --border: #484644; --panel: #2b2b2b; --accent: #479ef5; --accent-text: #0b0b0b; --ok: #6ccb5f; --warn: #f7c948; --error: #ff8a8a; --error-bg: #3b1e20; }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; padding: 16px; background: var(--bg); color: var(--text); font: 14px "Segoe UI", sans-serif; }
+h1 { font-size: 18px; margin: 0 0 4px; }
+.env { color: var(--muted); margin-bottom: 12px; }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 12px; }
+.tab { padding: 8px 16px; border: 1px solid transparent; border-bottom: none; background: none; color: var(--text); cursor: pointer; font: inherit; }
+.tab[aria-selected="true"] { border-color: var(--border); background: var(--panel); font-weight: 600; }
+.panel[hidden] { display: none; }
+textarea { width: 100%; min-height: 260px; font: 12px Consolas, monospace; background: var(--panel); color: var(--text); border: 1px solid var(--border); padding: 8px; }
+button.action { padding: 6px 14px; border: 1px solid var(--border); background: var(--panel); color: var(--text); cursor: pointer; font: inherit; }
+button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+button:disabled { opacity: .5; cursor: not-allowed; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 8px 0; }
+.note { color: var(--muted); }
+.box { border: 1px solid var(--border); background: var(--panel); padding: 8px 12px; margin: 8px 0; }
+.box.error { border-color: var(--error); background: var(--error-bg); color: var(--error); }
+.box ul { margin: 4px 0 0 18px; padding: 0; }
+table { width: 100%; border-collapse: collapse; margin: 8px 0; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+td:nth-child(3) { font: 11px Consolas, monospace; word-break: break-all; min-width: 150px; }
+.badge { padding: 1px 8px; border: 1px solid var(--border); font-size: 12px; white-space: nowrap; }
+.badge.create { color: var(--ok); } .badge.update { color: var(--accent); } .badge.error { color: var(--error); font-weight: 600; }
+.err { color: var(--error); } .wrn { color: var(--warn); } .chg { color: var(--muted); }
+#log { max-height: 260px; overflow: auto; border: 1px solid var(--border); background: var(--panel); padding: 8px; font: 12px Consolas, monospace; }
+#log div { padding: 1px 0; white-space: pre-wrap; }
+.log-ok { color: var(--ok); } .log-warn { color: var(--warn); } .log-error { color: var(--error); font-weight: 600; } .log-info { color: var(--muted); }
+</style>
+</head>
+<body>
+<h1 data-i18n="PAGE_TITLE">Rollup configuration transfer</h1>
+<div class="env" id="env"></div>
+
+<div class="tabs" role="tablist">
+    <button class="tab" id="tab-export" role="tab" aria-selected="false" data-i18n="TAB_EXPORT">Export</button>
+    <button class="tab" id="tab-import" role="tab" aria-selected="false" data-i18n="TAB_IMPORT">Import</button>
+</div>
+
+<section class="panel" id="panel-export" hidden>
+    <div id="export-status" class="note" data-i18n="LOADING">Loading…</div>
+    <div id="export-errors"></div>
+    <textarea id="export-text" readonly spellcheck="false"></textarea>
+    <div class="row">
+        <button class="action primary" id="export-copy" disabled data-i18n="BTN_COPY">Copy</button>
+        <button class="action" id="export-download" disabled data-i18n="BTN_DOWNLOAD">Download .json</button>
+        <span class="note" id="export-feedback"></span>
+    </div>
+</section>
+
+<section class="panel" id="panel-import" hidden>
+    <p class="note" data-i18n="IMPORT_INTRO">Paste the exported text (or load the file), then analyze it. Nothing is written until you start the import.</p>
+    <textarea id="import-text" spellcheck="false" data-i18n-placeholder="IMPORT_PLACEHOLDER" placeholder="Paste the exported JSON here"></textarea>
+    <div class="row">
+        <input type="file" id="import-file" accept=".json,application/json,text/plain" hidden>
+        <button class="action" id="import-pick" data-i18n="BTN_CHOOSE_FILE">Choose a file</button>
+        <span class="note" id="import-file-name" data-i18n="NO_FILE_CHOSEN">No file chosen</span>
+        <button class="action primary" id="import-analyze" data-i18n="BTN_ANALYZE">Analyze</button>
+    </div>
+    <div id="import-errors"></div>
+    <div id="import-plan"></div>
+    <div class="row" id="import-confirm-row" hidden>
+        <label><input type="checkbox" id="import-confirm"> <span data-i18n="IMPORT_CONFIRM">I confirm the import into</span> <strong id="import-env"></strong></label>
+        <button class="action primary" id="import-run" disabled data-i18n="BTN_IMPORT">Import</button>
+    </div>
+    <h2 style="font-size:15px" id="log-title" hidden data-i18n="LOG_TITLE">Log</h2>
+    <div id="log" hidden></div>
+    <div class="row" id="log-actions" hidden><button class="action" id="log-copy" data-i18n="BTN_COPY_LOG">Copy the log</button><span class="note" id="log-feedback"></span></div>
+</section>
+
+<script src="ksga_Localization.js"></script>
+<script src="ksga_TransferMessages.js"></script>
+<script src="ksga_RollupTransfer.js"></script>
+<script>
+(function () {
+    var transfer = Ksga.RollupTransfer;
+    var t = function (code, args) { return Ksga.Localization.t(code, args); };
+
+    Ksga.Localization.apply(document);
+    var xrm = transfer.getXrm();
+    var api = null;
+    var plan = null;
+    var running = false;
+    var logLines = [];
+
+    function byId(id) { return document.getElementById(id); }
+
+    function clear(element) { while (element.firstChild) { element.removeChild(element.firstChild); } }
+
+    function scrollToEnd(smooth) {
+        window.requestAnimationFrame(function () {
+            var target = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
+            if (smooth && typeof window.scrollTo === "function") {
+                try { window.scrollTo({ top: target, behavior: "smooth" }); return; } catch (error) { }
+            }
+            window.scrollTo(0, target);
+        });
+    }
+
+    function add(parent, tag, text, className) {
+        var element = document.createElement(tag);
+        if (text !== undefined && text !== null) { element.textContent = text; }
+        if (className) { element.className = className; }
+        parent.appendChild(element);
+        return element;
+    }
+
+    function showErrors(container, title, messages) {
+        clear(container);
+        if (!messages || messages.length === 0) { return; }
+        var box = add(container, "div", null, "box error");
+        add(box, "strong", title);
+        var list = add(box, "ul");
+        messages.forEach(function (message) { add(list, "li", message); });
+    }
+
+    function params() {
+        var data = new URLSearchParams(window.location.search).get("data") || "";
+        var parsed = new URLSearchParams(data);
+        return { mode: parsed.get("mode") || "import", ids: (parsed.get("ids") || "").split(",").filter(function (id) { return id.length > 0; }) };
+    }
+
+    function selectTab(name) {
+        ["export", "import"].forEach(function (tab) {
+            byId("tab-" + tab).setAttribute("aria-selected", tab === name ? "true" : "false");
+            byId("panel-" + tab).hidden = tab !== name;
+        });
+    }
+
+    function copyText(text, feedback) {
+        function done(ok) { feedback.textContent = ok ? t("COPIED") : t("COPY_FAILED"); }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(function () { done(true); }, function () { fallback(); });
+        } else { fallback(); }
+        function fallback() {
+            var area = document.createElement("textarea");
+            area.value = text; document.body.appendChild(area); area.select();
+            var ok = false;
+            try { ok = document.execCommand("copy"); } catch (error) { ok = false; }
+            document.body.removeChild(area);
+            done(ok);
+        }
+    }
+
+    function initExport(ids) {
+        var text = byId("export-text");
+        var status = byId("export-status");
+        var copy = byId("export-copy");
+        var download = byId("export-download");
+
+        if (ids.length === 0) {
+            status.textContent = t("EXPORT_NONE");
+            return;
+        }
+
+        status.textContent = t("EXPORT_READING", [ids.length]);
+
+        transfer.loadExportEntries(api, ids).then(function (entries) {
+            var payload = transfer.buildExport(entries, api.clientUrl);
+            var functions = payload.configs.reduce(function (total, config) { return total + config.functions.length; }, 0);
+            text.value = JSON.stringify(payload, null, 2);
+            status.textContent = t("EXPORT_DONE", [payload.configs.length, functions]);
+            copy.disabled = false;
+            download.disabled = false;
+        }).catch(function (error) {
+            status.textContent = "";
+            showErrors(byId("export-errors"), t("EXPORT_FAILED"), [transfer.describeError(error)]);
+        });
+
+        copy.addEventListener("click", function () { copyText(text.value, byId("export-feedback")); });
+        download.addEventListener("click", function () {
+            var blob = new Blob([text.value], { type: "application/json" });
+            var link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = "rollup-configurations-" + new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-") + ".json";
+            document.body.appendChild(link); link.click(); document.body.removeChild(link);
+            setTimeout(function () { URL.revokeObjectURL(link.href); }, 1000);
+        });
+    }
+
+    var actionLabels = { create: "ACTION_CREATE", update: "ACTION_UPDATE", none: "ACTION_NONE", error: "ACTION_ERROR" };
+
+    function renderPlan() {
+        var container = byId("import-plan");
+        clear(container);
+
+        var summary = plan.summary;
+        add(container, "div",
+            t("SUMMARY_CONFIGS", [summary.configs.create, summary.configs.update, summary.configs.none, summary.configs.error]) + " "
+            + t("SUMMARY_FUNCTIONS", [summary.functions.create, summary.functions.update, summary.functions.none, summary.functions.error]),
+            "box");
+
+        var table = add(container, "table");
+        var head = add(add(table, "thead"), "tr");
+        ["COL_TYPE", "COL_ITEM", "COL_GUID", "COL_ACTION", "COL_DETAIL"].forEach(function (title) { add(head, "th", t(title)); });
+        var body = add(table, "tbody");
+
+        function row(item, kind) {
+            var tr = add(body, "tr");
+            add(tr, "td", t(kind === "function" ? "KIND_FUNCTION" : "KIND_CONFIG"));
+            add(tr, "td", (kind === "function" ? "    " : "") + item.label);
+            add(tr, "td", item.id);
+            add(add(tr, "td"), "span", t(actionLabels[item.action]), "badge " + item.action);
+            var detail = add(tr, "td");
+            if (item.action === "create") { add(detail, "div", t("DETAIL_CREATE"), "chg"); }
+            if (item.changes && item.changes.length > 0 && item.action !== "create") { add(detail, "div", t("DETAIL_CHANGED", [item.changes.join(", ")]), "chg"); }
+            if (item.stateChange) { add(detail, "div", t(item.wanted.statecode === 0 ? "DETAIL_STATE_ON" : "DETAIL_STATE_OFF"), "chg"); }
+            item.errors.forEach(function (message) { add(detail, "div", "✖ " + message, "err"); });
+            item.warnings.forEach(function (message) { add(detail, "div", "⚠ " + message, "wrn"); });
+        }
+
+        plan.configs.forEach(function (config) {
+            row(config, "config");
+            config.functions.forEach(function (fn) { row(fn, "function"); });
+        });
+
+        var importable = summary.configs.create + summary.configs.update + summary.functions.create + summary.functions.update;
+        var hasErrors = summary.configs.error + summary.functions.error > 0;
+
+        byId("import-confirm-row").hidden = false;
+        byId("import-env").textContent = api.clientUrl;
+        byId("import-confirm").checked = false;
+        byId("import-run").disabled = true;
+        byId("import-confirm").disabled = importable === 0;
+
+        if (importable === 0) {
+            add(container, "div", t(hasErrors ? "NOTHING_ERRORS" : "NOTHING_IDENTICAL"), "box");
+        } else if (hasErrors) {
+            add(container, "div", t("ERRORS_IGNORED"), "box");
+        }
+    }
+
+    function appendLog(level, text) {
+        var line = new Date().toLocaleTimeString() + "  " + text;
+        logLines.push(line);
+        var entry = add(byId("log"), "div", line, "log-" + level);
+        byId("log").scrollTop = byId("log").scrollHeight;
+        scrollToEnd(false);
+        return entry;
+    }
+
+    function analyze() {
+        plan = null;
+        byId("import-plan").textContent = "";
+        byId("import-confirm-row").hidden = true;
+
+        var parsed = transfer.parsePayload(byId("import-text").value);
+
+        if (parsed.errors.length > 0) {
+            showErrors(byId("import-errors"), t("TEXT_NOT_IMPORTABLE"), parsed.errors);
+            scrollToEnd(true);
+            return;
+        }
+
+        showErrors(byId("import-errors"), "", []);
+        byId("import-analyze").disabled = true;
+        byId("import-plan").textContent = t("ANALYZING");
+
+        transfer.planImport(api, parsed.payload).then(function (result) {
+            plan = result;
+            renderPlan();
+        }).catch(function (error) {
+            byId("import-plan").textContent = "";
+            showErrors(byId("import-errors"), t("ANALYSIS_FAILED_TITLE"), [transfer.describeError(error)]);
+        }).then(function () {
+            byId("import-analyze").disabled = false;
+            scrollToEnd(true);
+        });
+    }
+
+    function run() {
+        if (!plan || running) { return; }
+        running = true;
+        byId("import-run").disabled = true;
+        byId("import-confirm").disabled = true;
+        byId("import-analyze").disabled = true;
+        clear(byId("log"));
+        logLines = [];
+        byId("log").hidden = false;
+        byId("log-title").hidden = false;
+        byId("log-actions").hidden = false;
+        appendLog("info", t("LOG_IMPORT_INTO", [api.clientUrl]));
+
+        transfer.execute(api, plan, appendLog).catch(function (error) {
+            appendLog("error", t("IMPORT_INTERRUPTED", [transfer.describeError(error)]));
+        }).then(function () {
+            running = false;
+            plan = null;
+            byId("import-analyze").disabled = false;
+            appendLog("info", t("RERUN_ANALYZE"));
+            scrollToEnd(true);
+        });
+    }
+
+    function initImport() {
+        byId("import-analyze").addEventListener("click", analyze);
+        byId("import-confirm").addEventListener("change", function () { byId("import-run").disabled = !byId("import-confirm").checked || !plan; });
+        byId("import-run").addEventListener("click", run);
+        byId("log-copy").addEventListener("click", function () { copyText(logLines.join("\n"), byId("log-feedback")); });
+        byId("import-pick").addEventListener("click", function () { byId("import-file").click(); });
+        byId("import-file").addEventListener("change", function (event) {
+            var file = event.target.files && event.target.files[0];
+            if (!file) { return; }
+            byId("import-file-name").textContent = file.name;
+            var reader = new FileReader();
+            reader.onload = function () { byId("import-text").value = String(reader.result); };
+            reader.onerror = function () { showErrors(byId("import-errors"), t("FILE_READ_FAILED"), [String(reader.error)]); };
+            reader.readAsText(file);
+        });
+    }
+
+    byId("tab-export").addEventListener("click", function () { selectTab("export"); });
+    byId("tab-import").addEventListener("click", function () { selectTab("import"); });
+
+    if (!xrm) {
+        byId("env").textContent = "";
+        selectTab("import");
+        showErrors(byId("import-errors"), t("NO_CONTEXT_TITLE"), [t("NO_CONTEXT_DETAIL")]);
+        byId("import-analyze").disabled = true;
+        return;
+    }
+
+    api = transfer.createApi(xrm.Utility.getGlobalContext().getClientUrl());
+    byId("env").textContent = t("ENV", [api.clientUrl]);
+
+    var options = params();
+
+    initExport(options.mode === "export" ? options.ids : []);
+    initImport();
+    selectTab(options.mode === "export" ? "export" : "import");
+}());
+</script>
+</body>
+</html>

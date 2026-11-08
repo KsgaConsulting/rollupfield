@@ -1,0 +1,6 @@
+{
+  "name": "ksga-rollupconfigurationengine-webresources",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Scripts de formulaire (web resources) du moteur de rollup configurable"
+}

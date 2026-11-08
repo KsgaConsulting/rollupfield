@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net7.0;net462</TargetFrameworks>
+    <LangVersion>latest</LangVersion>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>..\Ksga.RollupConfigurationEngine.Plugins\ksgaConsulting.snk</AssemblyOriginatorKeyFile>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CrmSdk.CoreAssemblies" Version="9.0.2.59" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Ksga.RollupConfigurationEngine\Ksga.RollupConfigurationEngine.Core.csproj" />
+  </ItemGroup>
+
+</Project>
